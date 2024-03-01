@@ -1,3 +1,4 @@
+# main.tf
 terraform {
   required_version = ">= 0.13.0"
   required_providers {
@@ -41,10 +42,10 @@ resource "libvirt_pool" "volumetmp" {
 }
 
 resource "libvirt_volume" "base" {
-  name   = "${var.cluster_name}-base"
-  source = var.base_image
-  pool   = libvirt_pool.volumetmp.name
-  format = "qcow2"
+  name       = "${var.cluster_name}-base"
+  source     = var.base_image
+  pool       = libvirt_pool.volumetmp.name
+  format     = "qcow2"
   depends_on = [null_resource.prepare_directory]
 }
 
@@ -64,10 +65,10 @@ resource "libvirt_ignition" "vm_ignition" {
 }
 
 resource "libvirt_volume" "vm_disk" {
-  for_each = toset(var.machines)
-  name     = "${each.value}-${var.cluster_name}.qcow2"
-  pool     = libvirt_pool.volumetmp.name
-  format   = "qcow2"
+  for_each       = toset(var.machines)
+  name           = "${each.value}-${var.cluster_name}.qcow2"
+  pool           = libvirt_pool.volumetmp.name
+  format         = "qcow2"
   base_volume_id = libvirt_volume.base.id
 }
 
@@ -79,11 +80,14 @@ resource "libvirt_network" "kube_network" {
 
   dhcp {
     enabled = true
-    ranges  = [
-      ["10.17.3.2", "10.17.3.254"] # Correctamente definido como una lista de listas
-    ]
+    # Suponiendo que tu versión soporta un bloque 'range' dentro de 'dhcp'
+    range {
+      start = "10.17.3.2"
+      end   = "10.17.3.254"
+    }
   }
 }
+
 
 resource "libvirt_domain" "machine" {
   for_each = toset(var.machines)
@@ -101,7 +105,7 @@ resource "libvirt_domain" "machine" {
   }
 
   network_interface {
-    network_id = libvirt_network.kube_network.id
+    network_id     = libvirt_network.kube_network.id
     wait_for_lease = true
   }
 
