@@ -29,3 +29,7 @@ variable "virtual_memory" {
   description = "Cantidad de memoria (en MB) para asignar a cada VM"
   type        = number
 }
+variable "cluster_domain" {
+  description = "El dominio del cluster."
+  type        = string
+}
