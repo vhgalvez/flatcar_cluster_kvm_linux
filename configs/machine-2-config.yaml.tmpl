@@ -1,0 +1,18 @@
+variant: flatcar
+version: 1.1.0
+storage:
+  filesystems:
+    - path: /
+      device: "/dev/disk/by-label/ROOT"
+      format: "ext4"
+  files:
+    - path: "/etc/motd"
+      mode: 0644
+      contents:
+        inline: |
+          ${message}
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys: 
+        - ${join("\n", ssh_keys)}
