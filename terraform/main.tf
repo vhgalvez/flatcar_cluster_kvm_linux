@@ -20,6 +20,20 @@ provider "libvirt" {
   uri = "qemu:///system"
 }
 
+resource "null_resource" "prepare_directory" {
+  triggers = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+    mkdir -p /var/lib/libvirt/images/${var.cluster_name} &&
+    sudo chown -R qemu:qemu /var/lib/libvirt/images/${var.cluster_name} &&
+    sudo chmod -R 755 /var/lib/libvirt/images/${var.cluster_name}
+    EOT
+  }
+}
+
 resource "libvirt_pool" "volumetmp" {
   name = var.cluster_name
   type = "dir"
@@ -31,6 +45,7 @@ resource "libvirt_volume" "base" {
   source = var.base_image
   pool   = libvirt_pool.volumetmp.name
   format = "qcow2"
+  depends_on = [null_resource.prepare_directory]
 }
 
 data "ct_config" "ignition" {
@@ -42,54 +57,51 @@ data "ct_config" "ignition" {
 }
 
 resource "libvirt_ignition" "vm_ignition" {
-  for_each = data.ct_config.ignition
-  name     = "${each.key}-${var.cluster_name}-ignition"
+  for_each = toset(var.machines)
+  name     = "${each.value}-${var.cluster_name}-ignition"
   pool     = libvirt_pool.volumetmp.name
-  content  = each.value.rendered
+  content  = data.ct_config.ignition[each.value].rendered
 }
 
 resource "libvirt_volume" "vm_disk" {
   for_each = toset(var.machines)
-  name     = "${each.key}-${var.cluster_name}.qcow2"
-  base_volume_id = libvirt_volume.base.id
+  name     = "${each.value}-${var.cluster_name}.qcow2"
   pool     = libvirt_pool.volumetmp.name
   format   = "qcow2"
+  base_volume_id = libvirt_volume.base.id
 }
 
 resource "libvirt_network" "kube_network" {
-  name      = "${var.cluster_name}-net"
+  name      = "k8s-network"
   mode      = "nat"
   domain    = "k8s.local"
   addresses = ["10.17.3.0/24"]
-  dns {
-    enabled    = true
-    local_only = true
-  }
+
   dhcp {
     enabled = true
-    ranges {
-      start = "10.17.3.2"
-      end   = "10.17.3.254"
-    }
+    start   = "10.17.3.2"
+    end     = "10.17.3.254"
   }
 }
 
 resource "libvirt_domain" "machine" {
   for_each = toset(var.machines)
-  name     = "${each.key}-${var.cluster_name}"
-  vcpu     = var.virtual_cpus
-  memory   = var.virtual_memory
+
+  name   = "${each.value}-${var.cluster_name}"
+  vcpu   = var.virtual_cpus
+  memory = var.virtual_memory
 
   disk {
-    volume_id = libvirt_volume.vm_disk[each.key].id
+    volume_id = libvirt_volume.vm_disk[each.value].id
   }
 
   disk {
-    volume_id = libvirt_ignition.vm_ignition[each.key].id
+    volume_id = libvirt_ignition.vm_ignition[each.value].id
   }
 
   network_interface {
     network_id = libvirt_network.kube_network.id
+    wait_for_lease = true
   }
 
   graphics {
@@ -98,4 +110,3 @@ resource "libvirt_domain" "machine" {
     autoport    = true
   }
 }
-
