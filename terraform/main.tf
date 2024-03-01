@@ -79,8 +79,9 @@ resource "libvirt_network" "kube_network" {
 
   dhcp {
     enabled = true
-    start   = "10.17.3.2"
-    end     = "10.17.3.254"
+    ranges  = [
+      ["10.17.3.2", "10.17.3.254"] # Correctamente definido como una lista de listas
+    ]
   }
 }
 
