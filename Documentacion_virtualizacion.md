@@ -62,6 +62,9 @@ nmcli connection show
 Definición de Variables para la Configuración del Puente de Red
 Establece variables para la creación del puente:
 
+
+
+
 bash
 Copy code
 BR_NAME="br0"
